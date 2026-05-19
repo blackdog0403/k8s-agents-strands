@@ -1,0 +1,80 @@
+{
+  "Comment": "AgentCore RCA Agent의 execution role IAM policy. EKS MCP Server를 통한 접근만 허용 (직접 EKS API 호출 권한 없음).",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BedrockInvokeModel",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-5-sonnet-*",
+        "arn:aws:bedrock:*::foundation-model/anthropic.claude-3-haiku-*"
+      ]
+    },
+    {
+      "Sid": "BedrockGuardrails",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:ApplyGuardrail"
+      ],
+      "Resource": "arn:aws:bedrock:*:ACCOUNT_ID:guardrail/*",
+      "Comment": "Bedrock Guardrails를 사용할 때만 필요. 미사용 시 제거 가능."
+    },
+    {
+      "Sid": "EksMcpServer",
+      "Effect": "Allow",
+      "Action": [
+        "eks-mcp:InvokeMcp",
+        "eks-mcp:CallReadOnlyTool"
+      ],
+      "Resource": "*",
+      "Comment": "Managed EKS MCP Server (preview, eks-mcp 서비스 prefix). 본 진단 에이전트는 read-only 만 사용하므로 CallPrivilegedTool 은 부여하지 않음. 출처: https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-getting-started.html — 또는 managed policy AmazonEKSMCPReadOnlyAccess 사용 가능."
+    },
+    {
+      "Sid": "EcrImagePull",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "arn:aws:ecr:*:ACCOUNT_ID:repository/rca-agent",
+      "Comment": "AgentCore Runtime 이 이미지를 pull 하기 위한 권한. GetAuthorizationToken 은 Resource: * 가 필요할 수 있음 — 별도 statement 로 분리 권장."
+    },
+    {
+      "Sid": "EksClusterAccess",
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeCluster",
+        "eks:AccessKubernetesApi"
+      ],
+      "Resource": [
+        "arn:aws:eks:us-west-2:ACCOUNT_ID:cluster/prod-us",
+        "arn:aws:eks:eu-west-1:ACCOUNT_ID:cluster/prod-eu"
+      ],
+      "Comment": "EKS MCP가 우리 자격 증명으로 클러스터에 접근하므로 이 role에 부여."
+    },
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:ACCOUNT_ID:log-group:/aws/bedrock-agentcore/*"
+    },
+    {
+      "Sid": "XrayTracing",
+      "Effect": "Allow",
+      "Action": [
+        "xray:PutTraceSegments",
+        "xray:PutTelemetryRecords"
+      ],
+      "Resource": "*"
+    }
+  ]
+}

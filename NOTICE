@@ -1,0 +1,31 @@
+k8s-agents-strands
+Copyright 2026 The k8s-agents-strands authors
+
+This product includes software developed by
+The k8s-agents-strands authors (https://github.com/k8s-agents-strands).
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+------------------------------------------------------------------------
+
+This software depends on the following third-party software, used under
+their respective licenses:
+
+- Strands Agents SDK (Apache License 2.0)
+  https://github.com/strands-agents/sdk-python
+
+- Model Context Protocol Python SDK (MIT License)
+  https://github.com/modelcontextprotocol/python-sdk
+
+- Amazon Bedrock AgentCore SDK (Apache License 2.0)
+  https://aws.amazon.com/bedrock/agentcore/
+
+- boto3 (Apache License 2.0)
+  https://github.com/boto/boto3
+
+- Pydantic (MIT License)
+  https://github.com/pydantic/pydantic

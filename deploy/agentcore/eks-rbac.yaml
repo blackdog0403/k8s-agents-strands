@@ -1,0 +1,97 @@
+# EKS Access for AgentCore RCA Agent (via EKS MCP Server)
+#
+# 본 프로젝트는 EKS API를 직접 호출하지 않고 **Amazon EKS MCP Server**를 통해 접근한다.
+# 따라서 진단 대상 EKS 클러스터에 직접 RBAC을 만들 필요는 없다 — 대신 EKS MCP Server가
+# 사용하는 IAM principal을 K8s에서 식별할 수 있도록 매핑해야 한다.
+#
+# 이 파일은 그 매핑 절차를 설명한다.
+#
+# 두 가지 시나리오:
+#
+# (A) Managed EKS MCP Server (preview, 권장)
+#     - AWS가 EKS MCP Server를 호스팅. AgentCore의 IAM credentials로 SigV4 서명.
+#     - 우리 IAM execution role이 곧 K8s에서의 사용자.
+#     - 매핑: AgentCore execution role을 EKS Access Entry / aws-auth ConfigMap에 등록.
+#
+# (B) Self-hosted EKS MCP Server (open-source)
+#     - 컨테이너로 직접 운영하거나 stdio로 띄움.
+#     - MCP 서버가 어떤 IAM principal로 호출하는지에 따라 매핑.
+#
+# 어느 쪽이든 K8s 측에 적용할 RBAC는 read-only로 제한한다.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rca-agent-reader
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - events
+      - services
+      - configmaps        # 메타데이터만 — agent는 data 본문을 LLM에 보내지 않음
+      - namespaces
+      - nodes
+      - persistentvolumeclaims
+      - endpoints
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+      - replicasets
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - networkpolicies
+      - ingresses
+    verbs: ["get", "list"]
+
+  # ❌ 절대 추가하지 말 것:
+  #   - secrets
+  #   - "*" (모든 verb 또는 모든 resource)
+  #   - create/update/delete/patch (read-only 원칙)
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rca-agent-reader
+subjects:
+  - kind: Group
+    name: rca-agent-readers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: rca-agent-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+# ============================================================
+# IAM principal → K8s group 매핑
+# ============================================================
+#
+# (A) Managed MCP — AgentCore execution role을 직접 매핑:
+#
+#   aws eks create-access-entry \
+#     --cluster-name prod-us \
+#     --principal-arn arn:aws:iam::ACCOUNT:role/<AgentCoreExecutionRole> \
+#     --kubernetes-groups rca-agent-readers \
+#     --type STANDARD
+#
+# (B) Self-hosted MCP — MCP server의 task role을 매핑 (예: ECS/EKS task role):
+#
+#   aws eks create-access-entry \
+#     --cluster-name prod-us \
+#     --principal-arn arn:aws:iam::ACCOUNT:role/<MCPServerTaskRole> \
+#     --kubernetes-groups rca-agent-readers
+#
+# 기존 aws-auth ConfigMap을 쓰는 클러스터는 mapRoles에 같은 정보를 추가한다.
