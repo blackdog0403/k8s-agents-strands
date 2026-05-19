@@ -120,8 +120,8 @@ class RcaAgentCoreStack(cdk.Stack):
             removal_policy=cdk.RemovalPolicy.RETAIN,
         )
 
-        # ----- 6. AgentCore Runtime은 별도 도구로 배포 -----
-        # 현재 CDK에는 AgentCore L2 construct가 없음.
+        # ----- 6. AgentCore Runtime 은 별도 도구로 배포 -----
+        # 현재 CDK 에는 AgentCore L2 construct 가 없음.
         # `agentcore deploy` CLI 또는 CloudFormation custom resource 사용 권장.
         cdk.CfnOutput(self, "VpcId", value=vpc.vpc_id)
         cdk.CfnOutput(
@@ -134,4 +134,21 @@ class RcaAgentCoreStack(cdk.Stack):
             self, "ClusterRegistryEnv",
             value=json.dumps(target_clusters),
             description="K8S_CLUSTERS 환경변수에 그대로 사용",
+        )
+
+        # ----- 7. Resource Policy (Pattern 3 이상 권장) -----
+        # AgentCore Runtime 생성 후 별도로 적용해야 함:
+        #   aws bedrock-agentcore-control put-agent-runtime-resource-policy \
+        #     --agent-runtime-id <id> --policy file://resource-policy-rendered.json
+        resource_policy_template = (
+            Path(__file__).parent.joinpath("resource-policy.json").read_text()
+        )
+        cdk.CfnOutput(
+            self, "ResourcePolicyTemplate",
+            value=resource_policy_template,
+            description=(
+                "AgentCore Runtime resource policy 템플릿. "
+                "ACCOUNT_ID, REGION, AGENT_RUNTIME_ID, VPCE_ID 를 치환한 뒤 "
+                "put-agent-runtime-resource-policy API 로 적용."
+            ),
         )

@@ -7,9 +7,10 @@
 | 파일 | 설명 |
 |------|------|
 | `Dockerfile` | ARM64 컨테이너 이미지 (AgentCore 계약 준수) |
-| `iam-execution-policy.json` | AgentCore execution role의 IAM 정책 (Bedrock + EKS Describe + STS) |
+| `iam-execution-policy.json` | AgentCore execution role 의 IAM 정책 (Bedrock + EKS + EKS MCP + ECR) |
+| `resource-policy.json` | AgentCore Runtime resource policy 템플릿 (호출자 제한) |
 | `eks-rbac.yaml` | 진단 대상 EKS 클러스터에 적용할 read-only RBAC + access mapping 가이드 |
-| `cdk_stack.py` | 격리 VPC + VPC endpoints + IAM role을 만드는 CDK 스택 템플릿 |
+| `cdk_stack.py` | 격리 VPC + VPC endpoints + IAM role 을 만드는 CDK 스택 템플릿 |
 
 ## 배포 흐름
 

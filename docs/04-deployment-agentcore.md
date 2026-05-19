@@ -186,6 +186,29 @@ done
 
 ---
 
+## 5.4 Resource Policy 적용 (호출자 제한)
+
+운영 환경에서는 AgentCore Runtime 에 resource policy 를 적용해 invoke 호출자를 제한합니다. 이 단계를 빠뜨리면 같은 계정의 모든 IAM principal 이 호출할 수 있습니다.
+
+```bash
+# 1) 템플릿을 환경에 맞게 치환
+sed -e "s/ACCOUNT_ID/123456789012/g" \
+    -e "s/REGION/us-west-2/g" \
+    -e "s|AGENT_RUNTIME_ID|<agent-id-from-step-4>|g" \
+    -e "s/VPCE_ID/vpce-0abc.../g" \
+    deploy/agentcore/resource-policy.json > /tmp/resource-policy.rendered.json
+
+# 2) AgentCore Runtime 에 적용
+aws bedrock-agentcore-control put-agent-runtime-resource-policy \
+  --agent-runtime-id <agent-id> \
+  --policy file:///tmp/resource-policy.rendered.json
+```
+
+정책의 두 statement:
+
+- `AllowInvocationFromApprovedPrincipals` — 명시된 caller IAM role 만 호출 허용
+- `DenyInvocationOutsideApprovedVpcEndpoint` — 호출 경로를 명시된 VPC endpoint 로 강제 (Pattern 3 이상). 모든 caller 가 같은 계정의 IAM role 이라면 이 deny 는 생략 가능
+
 ## 6. 호출 검증
 
 ```bash
@@ -249,7 +272,7 @@ AgentCore 가 OpenTelemetry trace 를 X-Ray 로 자동 전송합니다. CloudTra
 - [ ] 각 EKS 클러스터의 ClusterRole 이 read-only 이고 secrets 미포함
 - [ ] Access Entry 또는 aws-auth 가 의도한 IAM role 만 매핑
 - [ ] CloudWatch alarm 설정 (비용, error rate, throttle)
-- [ ] AgentCore Resource Policy 로 invoke 호출자 제한 (Pattern 3 이상)
+- [ ] AgentCore Resource Policy 적용 (`deploy/agentcore/resource-policy.json` 템플릿 → `put-agent-runtime-resource-policy`)
 
 ---
 

@@ -1,0 +1,37 @@
+{
+  "Comment": "AgentCore Runtime resource policy — invoke 호출자를 의도한 IAM principal 또는 VPC endpoint 로 제한. Pattern 3 이상에서 권장. 출처: https://aws.amazon.com/blogs/networking-and-content-delivery/network-connectivity-patterns-for-agents-deployed-on-amazon-bedrock-agentcore-runtime/",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowInvocationFromApprovedPrincipals",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": [
+          "arn:aws:iam::ACCOUNT_ID:role/RcaAgentCallerRole"
+        ]
+      },
+      "Action": [
+        "bedrock-agentcore:InvokeAgentRuntime"
+      ],
+      "Resource": "arn:aws:bedrock-agentcore:REGION:ACCOUNT_ID:runtime/AGENT_RUNTIME_ID/*"
+    },
+    {
+      "Sid": "DenyInvocationOutsideApprovedVpcEndpoint",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": [
+        "bedrock-agentcore:InvokeAgentRuntime"
+      ],
+      "Resource": "arn:aws:bedrock-agentcore:REGION:ACCOUNT_ID:runtime/AGENT_RUNTIME_ID/*",
+      "Condition": {
+        "StringNotEqualsIfExists": {
+          "aws:SourceVpce": "VPCE_ID"
+        },
+        "BoolIfExists": {
+          "aws:ViaAWSService": "false"
+        }
+      },
+      "Comment": "Pattern 3 이상에서 호출 경로를 명시된 VPC endpoint 로만 강제. 모든 caller 가 같은 계정의 IAM role 인 환경이라면 이 Deny statement 는 생략 가능."
+    }
+  ]
+}
