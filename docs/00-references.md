@@ -21,8 +21,9 @@
 | 04 | [AgentCore 배포](./04-deployment-agentcore.md) | Pattern 4, 멀티 클러스터, 운영 |
 | 05 | [코드 스타일](./05-code-style.md) | 가독성 원칙과 검토 기준 |
 | 06 | [보안 & 부하](./06-security-and-load.md) | layered defense 와 운영 체크리스트 |
+| 07 | [운영 Runbook](./07-runbook.md) | on-call 이 알람 받았을 때 따라가는 5 단계 절차 |
 
-추천 학습 순서: **01 → 02 → 03 → 04 → 06 → 05** (스타일 가이드는 마지막에 한 번 정독)
+추천 학습 순서: **01 → 02 → 03 → 04 → 06 → 05 → 07** (Runbook 은 운영 시작 직전 한 번 정독)
 
 ---
 

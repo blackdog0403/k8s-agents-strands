@@ -175,6 +175,7 @@ AgentCore 는 invocation 마다 별도 microVM 을 사용합니다.
 
 ## 다음 단계
 
+- 알람이 울렸을 때 무엇을 할지 → [07. 운영 Runbook](./07-runbook.md)
 - 처음으로 돌아가기 → [01. 시작하기](./01-getting-started.md)
 - 외부 자료 카탈로그 → [00. References](./00-references.md)
 
