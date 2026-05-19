@@ -105,6 +105,7 @@ k8s-agents-strands/
 | [04. AgentCore 배포](./docs/04-deployment-agentcore.md) | 배포·운영자 | Pattern 4, EKS MCP, 멀티 클러스터 매핑 |
 | [05. 코드 스타일](./docs/05-code-style.md) | 모든 컨트리뷰터 | 가독성 원칙과 검토 기준 |
 | [06. 보안 & 부하](./docs/06-security-and-load.md) | 보안·SRE 검토자 | layered defense 와 운영 체크리스트 |
+| [07. 운영 Runbook](./docs/07-runbook.md) | on-call 엔지니어 | 알람별 5 단계 대응 절차 |
 
 추천 학습 순서: **01 → 02 → 03 → 04 → 06 → 05**.
 외부 자료(Strands · Bedrock AgentCore · EKS MCP 등)는 [00. References](./docs/00-references.md) 에 한곳에 모아두었습니다.
