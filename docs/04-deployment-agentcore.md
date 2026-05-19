@@ -245,6 +245,29 @@ CloudWatch Billing Alert 에 임계값을 설정합니다.
 - EKS MCP Server (managed) — API 호출 수
 - VPC Endpoints — 일반적으로 작지만 추적
 
+### 메트릭과 Alarm 임계값
+
+`infrastructure/metrics.py` 가 CloudWatch EMF (Embedded Metric Format) 로 다음 메트릭을 stdout 에 emit 합니다. AgentCore Runtime 의 log shipper 가 자동으로 CloudWatch Metrics 의 `RcaAgent` namespace 에 적재합니다.
+
+| 메트릭 | Unit | Dimensions | 의미 |
+|--------|------|-----------|------|
+| `rca.invocation.count` | Count | cluster, status | invocation 횟수 |
+| `rca.invocation.latency_ms` | Milliseconds | cluster | invocation 지연 |
+| `rca.tool_call.count` | Count | specialist, tool, status | 도구 호출 횟수 (향후 wiring) |
+| `rca.llm.tokens.input` | Count | model | LLM 입력 토큰 (향후 wiring) |
+| `rca.llm.tokens.output` | Count | model | LLM 출력 토큰 (향후 wiring) |
+
+권장 alarm 임계값:
+
+| Alarm 이름 | 메트릭과 조건 | 평가 윈도우 | 액션 | 대응 시나리오 |
+|-----------|--------------|-----------|------|------------|
+| `RcaAgent-InvocationErrorRate` | `rca.invocation.count{status=failure} / rca.invocation.count` > 5% | 5 분 | PagerDuty | [Runbook §1](./07-runbook.md#시나리오-1-agentcore-invocation-5xx-에러율-폭증) |
+| `RcaAgent-InvocationLatencyP95` | `rca.invocation.latency_ms` p95 > 60000 | 5 분 | Slack | latency 추세 검토 |
+| `RcaAgent-BedrockThrottle` | `AWS/Bedrock` ThrottleException > 0 | 1 분 | Slack | [Runbook §2](./07-runbook.md#시나리오-2-bedrock-throttle-폭증) |
+| `RcaAgent-ToolCallFailureRate` | `rca.tool_call.count{status=failure} / total` > 10% | 10 분 | Slack | [Runbook §3](./07-runbook.md#시나리오-3-eks-mcp-timeout-폭증) |
+| `RcaAgent-DailyTokenBudget` | `rca.llm.tokens.input + output` > 일일 한도 80% | 1 시간 | Slack | [Runbook §4](./07-runbook.md#시나리오-4-llm-토큰-비용-급증) |
+| `RcaAgent-ClusterFailureRate` | `rca.invocation.count{cluster=X, status=failure} / total` > 30% | 10 분 | PagerDuty | [Runbook §5](./07-runbook.md#시나리오-5-단일-eks-cluster-진단-실패-폭증) |
+
 ### 관측성
 
 AgentCore 가 OpenTelemetry trace 를 X-Ray 로 자동 전송합니다. CloudTrail 에는 EKS MCP 호출이 기록됩니다 (managed). 추가로 추적할 항목:

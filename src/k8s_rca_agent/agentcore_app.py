@@ -21,6 +21,7 @@ import os
 from typing import Any
 
 from k8s_rca_agent.agents import create_orchestrator
+from k8s_rca_agent.infrastructure.metrics import emit, time_block
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +47,35 @@ def _build_query(payload: dict[str, Any]) -> tuple[str, str]:
 
 def invoke(payload: dict[str, Any]) -> dict[str, Any]:
     """단일 invocation 처리."""
-    query, cluster = _build_query(payload)
+    try:
+        query, cluster = _build_query(payload)
+    except ValueError:
+        # cluster 를 모르면 dimension 으로 unknown 표기 (카디널리티 ↑ 안 함)
+        emit(
+            "rca.invocation.count",
+            value=1,
+            dimensions={"cluster": "unknown", "status": "bad_request"},
+        )
+        raise
 
-    orchestrator = create_orchestrator()
-    user_message = f"[cluster={cluster}] {query}"
-    response = orchestrator(user_message)
+    status = "success"
+    try:
+        with time_block(
+            "rca.invocation.latency_ms",
+            dimensions={"cluster": cluster},
+        ):
+            orchestrator = create_orchestrator()
+            user_message = f"[cluster={cluster}] {query}"
+            response = orchestrator(user_message)
+    except Exception:
+        status = "failure"
+        raise
+    finally:
+        emit(
+            "rca.invocation.count",
+            value=1,
+            dimensions={"cluster": cluster, "status": status},
+        )
 
     return {
         "response": str(response),
