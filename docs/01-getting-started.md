@@ -1,42 +1,44 @@
-# 01. 시작하기
+# 01. Getting Started
 
-[← 00. References](./00-references.md) · [02. 아키텍처 →](./02-architecture.md)
+> 🌐 **Language**: **English** · [한국어](./01-getting-started.ko.md)
 
-이 문서는 처음 이 레포를 받았을 때 **로컬에서 RCA Agent 를 실제로 실행**하기까지의 모든 단계를 안내합니다.
-Strands, EKS MCP Server, Bedrock 같은 처음 보는 이름이 등장하면 [00. References](./00-references.md) 에서 한 줄 설명과 공식 문서 링크를 찾아볼 수 있습니다.
+[← 00. References](./00-references.md) · [02. Architecture →](./02-architecture.md)
 
-> 본 레포는 K8s API 를 직접 호출하지 않습니다.
-> 모든 클러스터 데이터는 [Amazon EKS MCP Server](./00-references.md#3-amazon-eks-mcp-server) 가 가져옵니다.
+This document walks you through everything from picking up the repo for the first time to **actually running the RCA Agent locally**.
+When you encounter unfamiliar names like Strands, EKS MCP Server, or Bedrock, see [00. References](./00-references.md) for one-line summaries and links to the official docs.
+
+> This repo never calls the K8s API directly.
+> All cluster data is fetched through the [Amazon EKS MCP Server](./00-references.md#3-amazon-eks-mcp-server).
 
 ---
 
-## 1. 전제 조건
+## 1. Prerequisites
 
-| 항목 | 버전 또는 요건 | 확인 방법 |
-|------|---------------|-----------|
-| Python | 3.11 이상 | `python3 --version` |
-| `uv` (uvx) | 최신 | `uvx --version` |
+| Item | Version / Requirement | How to check |
+|------|----------------------|--------------|
+| Python | 3.11+ | `python3 --version` |
+| `uv` (uvx) | latest | `uvx --version` |
 | AWS CLI | 2.x | `aws --version` |
-| AWS 자격 증명 | Bedrock 와 EKS 접근 권한 | `aws sts get-caller-identity` |
-| Bedrock 모델 액세스 | Claude 모델 활성화 | [Bedrock 콘솔](./00-references.md#2-amazon-bedrock-와-bedrock-agentcore) |
-| EKS 클러스터 | 본인 IAM 이 access entry 를 가진 클러스터 1 개 이상 | `aws eks list-clusters` |
-| Docker (선택) | 20 이상 | 컨테이너 빌드·실행에 필요 |
+| AWS credentials | Bedrock + EKS access | `aws sts get-caller-identity` |
+| Bedrock model access | Claude enabled | [Bedrock console](./00-references.md#2-amazon-bedrock-and-bedrock-agentcore) |
+| EKS cluster | At least one cluster you have access entry on | `aws eks list-clusters` |
+| Docker (optional) | 20+ | Needed only for container build/run |
 
-### `uv` 설치
+### Install `uv`
 
-EKS MCP Server 를 stdio 모드로 띄울 때 `uvx` 가 필요합니다.
+`uvx` is required to launch the EKS MCP Server in stdio mode.
 
 ```bash
 # macOS
 brew install uv
 
-# 또는 Python 패키지 매니저로
+# Or via pip
 pip install uv
 ```
 
 ---
 
-## 2. 설치
+## 2. Install
 
 ```bash
 git clone <repository-url> k8s-agents-strands
@@ -49,7 +51,7 @@ pip install --upgrade pip
 pip install -e ".[dev]"
 ```
 
-설치 검증:
+Verify the install:
 
 ```bash
 python -c "from k8s_rca_agent.agents import create_orchestrator; print('OK')"
@@ -58,63 +60,63 @@ pytest tests/ -q
 
 ---
 
-## 3. EKS MCP Server 부팅 점검
+## 3. Verify the EKS MCP Server boots
 
-stdio 모드로 EKS MCP Server 가 정상 부팅되는지 확인합니다.
+Confirm that the EKS MCP Server starts cleanly in stdio mode.
 
 ```bash
 uvx awslabs.eks-mcp-server@latest --help
 ```
 
-명령이 헬프 메시지를 출력하면 OK 입니다. 실제 서버는 stdio 위에서 동작하므로 stdin 이 연결되어 있어야 응답합니다.
+If the help text appears, you are good. The actual server runs over stdio, so it expects stdin to be connected to respond to real requests.
 
 ---
 
-## 4. 로컬 테스트 4 단계
+## 4. The four local-test tiers
 
 ```
-[일상 개발]                             [PR 직전]
-   │                                       │
-   ▼                                       ▼
-1) Python CLI       →   2) AgentCore SDK 로컬   →   3) Docker 로컬   →   4) AgentCore CLI
-   가장 빠른 반복         진입점 계약 검증              컨테이너 검증        가장 production-like
+[Daily dev]                              [Just before PR]
+   │                                          │
+   ▼                                          ▼
+1) Python CLI       →   2) AgentCore SDK local   →   3) Local Docker   →   4) AgentCore CLI
+   Fastest iteration       Entrypoint-contract test       Container test         Most production-like
 ```
 
-각 단계는 다음과 같이 사용합니다.
+Use each tier as follows.
 
-### 4.1 Python CLI — 일상 개발
+### 4.1 Python CLI — daily development
 
 ```bash
-# 단일 질의
+# Single query
 python -m k8s_rca_agent.main --cluster <your-cluster-name> \
-  "default 네임스페이스의 nginx Pod 상태 확인해줘"
+  "Check the status of the nginx pod in the default namespace"
 
-# 인터랙티브 모드
+# Interactive
 python -m k8s_rca_agent.main --cluster <your-cluster-name>
 ```
 
-`<your-cluster-name>` 은 본인 IAM 이 EKS access entry 로 매핑된 실제 클러스터 이름입니다.
+`<your-cluster-name>` is the actual cluster your IAM principal has an EKS access entry on.
 
-기본값은 `EKS_MCP_TRANSPORT=stdio` 라서, `uvx` 가 자식 프로세스로 EKS MCP Server 를 실행합니다.
+The default is `EKS_MCP_TRANSPORT=stdio`, which spawns the EKS MCP Server as a child process via `uvx`.
 
-### 4.2 AgentCore SDK 로컬 모드 — 진입점 계약 검증
+### 4.2 AgentCore SDK local mode — entrypoint contract
 
-`agentcore_app.py` 가 AgentCore 의 `/invocations`, `/ping` 계약을 만족하는지 확인합니다.
+Verify that `agentcore_app.py` satisfies the AgentCore `/invocations` and `/ping` contract.
 
 ```bash
 pip install -e ".[dev,agentcore]"
 python -m k8s_rca_agent.agentcore_app
 ```
 
-다른 터미널에서 호출:
+In a separate terminal:
 
 ```bash
 curl -X POST http://localhost:8080/invocations \
   -H "Content-Type: application/json" \
-  -d '{"query": "default 네임스페이스의 nginx 봐줘", "cluster": "<your-cluster-name>"}'
+  -d '{"query": "Look at the nginx pod in the default namespace", "cluster": "<your-cluster-name>"}'
 ```
 
-### 4.3 Docker 로컬 실행
+### 4.3 Local Docker
 
 ```bash
 docker buildx build --platform linux/arm64 \
@@ -130,56 +132,56 @@ docker run --rm -p 8080:8080 \
   rca-agent:local
 ```
 
-> 컨테이너는 `--no-create-home` 으로 빌드되어 있어 사용자 홈이 없습니다.
-> 자격 증명은 환경 변수나 위와 같이 명시적인 마운트로 전달하세요.
+> The container is built with `--no-create-home`, so there is no user home directory.
+> Pass credentials through environment variables or an explicit mount as shown above.
 
-### 4.4 Managed EKS MCP Server 사용 (preview)
+### 4.4 Managed EKS MCP Server (preview)
 
 ```bash
-# region 은 AWS_REGION 으로 자동 결정됩니다 (us-west-2 기본).
+# Region is auto-derived from AWS_REGION (default us-west-2).
 export EKS_MCP_TRANSPORT=http
 export AWS_REGION=us-west-2
-# 명시적으로 endpoint 를 지정하려면:
+# To override the endpoint explicitly:
 # export EKS_MCP_ENDPOINT=https://eks-mcp.us-west-2.api.aws/mcp
 python -m k8s_rca_agent.main --cluster <your-cluster-name> "..."
 ```
 
-> 현재 `mcp_client.py` 의 http 모드는 SigV4 서명을 직접 수행하지 않습니다.
-> Managed endpoint 호출에는 AWS 가 제공하는 공식 proxy [`aws/mcp-proxy-for-aws`](./00-references.md#3-amazon-eks-mcp-server) 를 sidecar 또는 stdio 형태로 앞에 두어야 합니다.
-> 로컬 dev 라면 stdio 모드(`EKS_MCP_TRANSPORT=stdio`)가 가장 단순합니다.
+> The current `mcp_client.py` http mode does not perform SigV4 signing itself.
+> Calls to the managed endpoint must go through the official [`aws/mcp-proxy-for-aws`](./00-references.md#3-amazon-eks-mcp-server) proxy, either as a sidecar or via stdio.
+> For local dev, stdio mode (`EKS_MCP_TRANSPORT=stdio`) is the simplest option.
 
 ---
 
-## 5. 첫 실행 — Hello World
+## 5. First run — Hello World
 
-진단 대상 클러스터가 있다고 가정합니다.
+Assuming you have an accessible cluster:
 
 ```bash
-# Pod 띄우기
+# Launch a pod
 kubectl --context=<cluster> run hello-nginx --image=nginx --restart=Never
 kubectl --context=<cluster> wait --for=condition=Ready pod/hello-nginx --timeout=60s
 
-# Agent 에게 질의
+# Ask the agent
 python -m k8s_rca_agent.main --cluster <cluster> \
-  "default 네임스페이스의 hello-nginx Pod 상태 확인해줘"
+  "Check the status of the hello-nginx pod in the default namespace"
 
-# 정리
+# Cleanup
 kubectl --context=<cluster> delete pod hello-nginx
 ```
 
-흐름 한 줄 요약:
+What happens, in one line:
 
-1. Orchestrator 가 질문을 분석해 Pod 관련임을 인식 → `pod_diagnostic` 으로 위임
-2. Specialist 가 EKS MCP 도구를 호출 (`get_pod` 등)
-3. EKS MCP 가 SigV4 로 EKS API 호출
-4. 응답이 LLM 에 전달
-5. LLM 이 한국어 RCA 리포트로 재구성
+1. The orchestrator analyzes the question, decides it is pod-related, and delegates to `pod_diagnostic`
+2. The specialist invokes EKS MCP tools (`get_pod`, etc.)
+3. EKS MCP calls the EKS API with SigV4
+4. The response goes back to the LLM
+5. The LLM produces a Korean / English RCA report
 
-자세한 라이프사이클은 [02. 아키텍처 §5](./02-architecture.md) 참고.
+For the detailed lifecycle, see [02. Architecture §5](./02-architecture.md).
 
 ---
 
-## 6. CrashLoopBackOff 시나리오
+## 6. CrashLoopBackOff scenario
 
 ```bash
 kubectl --context=<cluster> run crash-test --image=busybox --restart=Never \
@@ -189,41 +191,41 @@ sleep 30
 kubectl --context=<cluster> get pod crash-test
 
 python -m k8s_rca_agent.main --cluster <cluster> \
-  "default 네임스페이스의 crash-test Pod 분석해줘"
+  "Analyze the crash-test pod in the default namespace"
 
 kubectl --context=<cluster> delete pod crash-test
 ```
 
-Agent 가 EKS MCP 를 통해 Pod 상태와 Warning 이벤트를 수집하고 종합 분석합니다.
+The agent uses EKS MCP to gather pod state and Warning events, then produces a synthesis.
 
 ---
 
-## 7. 트러블슈팅
+## 7. Troubleshooting
 
-| 증상 | 원인 후보 | 해결 |
-|------|---------|------|
-| `ModuleNotFoundError: No module named 'k8s_rca_agent'` | venv 활성화 안 됨 | `source .venv/bin/activate && pip install -e ".[dev]"` |
-| `uvx: command not found` | uv 미설치 | `brew install uv` 또는 `pip install uv` |
-| `NoCredentialsError` | AWS 자격 증명 미설정 | `aws configure` 또는 `export AWS_PROFILE=...` |
-| `AccessDeniedException` (Bedrock) | 모델 액세스 미활성 | [Bedrock 콘솔](./00-references.md#2-amazon-bedrock-와-bedrock-agentcore) 에서 Claude 활성화 |
-| EKS MCP 가 클러스터를 못 찾음 | IAM access entry 또는 RBAC 누락 | `aws eks list-clusters` 결과와 `deploy/agentcore/eks-rbac.yaml` 적용 여부 확인 |
-| AgentCore SDK 미설치 | extras 미설치 | `pip install -e ".[agentcore]"` |
-
----
-
-## 다음 단계
-
-- 코드가 왜 이렇게 짜여 있는지 이해하기 → [02. 아키텍처](./02-architecture.md)
-- 새 specialist 또는 도구 추가하기 → [03. 개발 가이드](./03-development.md)
-- 운영에 배포하기 → [04. AgentCore 배포](./04-deployment-agentcore.md)
-- 보안 모델 한 번에 훑기 → [06. 보안 & 부하](./06-security-and-load.md)
-
-## 더 깊이 알아보기
-
-- Strands 로 에이전트가 어떻게 도구를 호출하는지 — [Strands MCP Tools 통합](./00-references.md#1-strands-agents-sdk)
-- Bedrock 에 Claude 모델을 활성화하는 방법 — [Bedrock 콘솔](./00-references.md#2-amazon-bedrock-와-bedrock-agentcore)
-- EKS MCP Server 가 무엇을 하는지 — [Amazon EKS MCP Server 소개](./00-references.md#3-amazon-eks-mcp-server)
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| `ModuleNotFoundError: No module named 'k8s_rca_agent'` | venv not active | `source .venv/bin/activate && pip install -e ".[dev]"` |
+| `uvx: command not found` | uv not installed | `brew install uv` or `pip install uv` |
+| `NoCredentialsError` | AWS credentials unset | `aws configure` or `export AWS_PROFILE=...` |
+| `AccessDeniedException` (Bedrock) | Model access not enabled | Enable Claude in the [Bedrock console](./00-references.md#2-amazon-bedrock-and-bedrock-agentcore) |
+| EKS MCP cannot find the cluster | Missing IAM access entry or RBAC | Check `aws eks list-clusters` and confirm `deploy/agentcore/eks-rbac.yaml` is applied |
+| AgentCore SDK not installed | Extras missing | `pip install -e ".[agentcore]"` |
 
 ---
 
-[← 00. References](./00-references.md) · [02. 아키텍처 →](./02-architecture.md)
+## Next
+
+- Understand why the code is shaped this way → [02. Architecture](./02-architecture.md)
+- Add a new specialist or tool → [03. Development Guide](./03-development.md)
+- Deploy to production → [04. AgentCore Deployment](./04-deployment-agentcore.md)
+- Skim the security model → [06. Security & Load](./06-security-and-load.md)
+
+## Going deeper
+
+- How Strands lets agents call tools — [Strands MCP Tools integration](./00-references.md#1-strands-agents-sdk)
+- Enabling Claude models on Bedrock — [Bedrock console](./00-references.md#2-amazon-bedrock-and-bedrock-agentcore)
+- What the EKS MCP Server actually does — [Amazon EKS MCP Server introduction](./00-references.md#3-amazon-eks-mcp-server)
+
+---
+
+[← 00. References](./00-references.md) · [02. Architecture →](./02-architecture.md)
