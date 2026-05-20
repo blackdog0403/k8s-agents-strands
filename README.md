@@ -1,45 +1,47 @@
 # k8s-agents-strands
 
-Kubernetes 클러스터 장애의 **근본 원인 분석(RCA)** 을 자동화하는 AI Agent입니다.
+> 🌐 **Language**: **English** · [한국어](./README.ko.md)
 
-[Strands Agents SDK](https://strandsagents.com)로 에이전트를 구성하고, 클러스터 데이터는 [Amazon EKS MCP Server](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-introduction.html)로 조회합니다. 운영 환경에는 [Amazon Bedrock AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-vpc.html)에 Pattern 4 (full VPC isolation) 로 배포합니다.
+An AI agent that automates **root cause analysis (RCA)** for Kubernetes cluster incidents.
 
-> **운영 원칙**: AI 도구가 코드 작성을 도와주더라도, **사람이 line-by-line 이해하지 못한 코드는 운영에 올리지 않습니다.**
-> 검증된 SDK 와 MCP 를 먼저 활용하고, 직접 구현은 정말 필요할 때만 합니다. 자세한 기준은 [05-code-style.md](./docs/05-code-style.md) 를 참고하세요.
+The agent is built with the [Strands Agents SDK](https://strandsagents.com), pulls cluster data through the [Amazon EKS MCP Server](https://docs.aws.amazon.com/eks/latest/userguide/eks-mcp-introduction.html), and runs in production on the [Amazon Bedrock AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/agentcore-vpc.html) under Pattern 4 (full VPC isolation).
+
+> **Operating principle**: even when AI tooling helps write the code, **we do not ship code that humans cannot read line by line.**
+> Reach for proven SDKs and MCP servers first, and write our own implementation only when truly necessary. The full criteria are in [05-code-style.md](./docs/05-code-style.md).
 
 ---
 
-## 빠른 시작 (로컬)
+## Quick start (local)
 
 ```bash
-# 1) 클론과 설치
+# 1) Clone & install
 git clone <repository-url>
 cd k8s-agents-strands
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# 2) 사전 점검
-aws sts get-caller-identity                              # AWS 인증
-aws bedrock list-foundation-models --region us-west-2    # Bedrock 모델 액세스
-uvx awslabs.eks-mcp-server@latest --help                 # EKS MCP 부팅 확인
+# 2) Pre-flight checks
+aws sts get-caller-identity                              # AWS auth
+aws bedrock list-foundation-models --region us-west-2    # Bedrock model access
+uvx awslabs.eks-mcp-server@latest --help                 # EKS MCP boots
 
-# 3) 첫 질의
+# 3) First query
 python -m k8s_rca_agent.main --cluster <your-eks-cluster> \
-  "default 네임스페이스의 nginx Pod 상태 확인해줘"
+  "Check the status of the nginx pod in the default namespace"
 ```
 
-전체 단계는 [01-getting-started.md](./docs/01-getting-started.md) 에 있습니다.
+For the full walkthrough, see [01-getting-started.md](./docs/01-getting-started.md).
 
 ---
 
-## 아키텍처 한눈에
+## Architecture at a glance
 
 ```
-사용자 / AgentCore payload   { query, cluster }
+User / AgentCore payload   { query, cluster }
         │
         ▼
    Orchestrator Agent
-        │   (라우팅)
+        │   (routing)
         ▼
    Specialist Agent
    (Pod / Network / ...)
@@ -48,118 +50,125 @@ python -m k8s_rca_agent.main --cluster <your-eks-cluster> \
    EKS MCP Server (AWS managed)
         │   SigV4 + EKS API
         ▼
-   EKS 클러스터
+   EKS cluster
 ```
 
-소스 파일 11 개입니다. 핵심 패턴은 세 가지로 압축됩니다 — Strands MCP 통합, Multi-Agent (agents-as-tools), Bedrock AgentCore Runtime.
+11 source files. Three core patterns: Strands MCP integration, Multi-Agent (agents-as-tools), and the Bedrock AgentCore Runtime.
 
 ---
 
-## 디렉토리 구조
+## Repository layout
 
 ```
 k8s-agents-strands/
-├── README.md
+├── README.md                      # English (this file)
+├── README.ko.md                   # Korean
 ├── pyproject.toml
 ├── deploy/
-│   └── agentcore/                 # AgentCore Pattern 4 배포 매니페스트
+│   └── agentcore/                 # AgentCore Pattern 4 deployment manifests
 │       ├── Dockerfile
 │       ├── cdk_stack.py
 │       ├── iam-execution-policy.json
+│       ├── resource-policy.json
 │       ├── eks-rbac.yaml
 │       └── README.md
 ├── docs/
+│   ├── 00-references.md
 │   ├── 01-getting-started.md
 │   ├── 02-architecture.md
 │   ├── 03-development.md
 │   ├── 04-deployment-agentcore.md
 │   ├── 05-code-style.md
-│   └── 06-security-and-load.md
+│   ├── 06-security-and-load.md
+│   └── 07-runbook.md
 ├── src/k8s_rca_agent/
 │   ├── domain/
-│   │   ├── models.py              # Diagnosis 도메인 모델
-│   │   └── validation.py          # 입력 sanity check
+│   │   ├── models.py              # Diagnosis domain model
+│   │   └── validation.py          # Input sanity checks
 │   ├── infrastructure/
-│   │   ├── mcp_client.py          # EKS MCP 클라이언트 팩토리
-│   │   ├── container.py           # DI 컨테이너
-│   │   └── redaction.py           # 민감 정보 마스킹 유틸
+│   │   ├── mcp_client.py          # EKS MCP client factory
+│   │   ├── container.py           # DI container
+│   │   ├── metrics.py             # CloudWatch EMF emitter
+│   │   └── redaction.py           # Secret-pattern masking utility
 │   ├── agents/
-│   │   ├── orchestrator.py        # 라우팅 + 종합
-│   │   └── pod_diagnostic.py      # Pod 진단 specialist
-│   ├── tools/                     # 자체 특화 도구 (현재 비어 있음)
-│   ├── agentcore_app.py           # AgentCore Runtime 진입점
-│   └── main.py                    # 로컬 CLI 진입점
+│   │   ├── orchestrator.py        # Routing + synthesis
+│   │   └── pod_diagnostic.py      # Pod diagnosis specialist
+│   ├── tools/                     # Custom tools (currently empty)
+│   ├── agentcore_app.py           # AgentCore Runtime entrypoint
+│   └── main.py                    # Local CLI entrypoint
 └── tests/
 ```
 
 ---
 
-## 문서 안내
+## Documentation
 
-| 문서 | 대상 독자 | 핵심 내용 |
-|------|-----------|-----------|
-| [00. References](./docs/00-references.md) | 모두 | Strands · Bedrock · AgentCore · MCP · K8s 자료 인덱스 |
-| [01. 시작하기](./docs/01-getting-started.md) | 처음 접하는 사람 | 설치, 사전 점검, 4-tier 로컬 테스트 |
-| [02. 아키텍처](./docs/02-architecture.md) | 구조를 이해하려는 사람 | MCP-first 설계, 데이터 흐름, invocation 라이프사이클 |
-| [03. 개발 가이드](./docs/03-development.md) | 기능을 추가하려는 사람 | specialist / 도구 / MCP 추가 튜토리얼 |
-| [04. AgentCore 배포](./docs/04-deployment-agentcore.md) | 배포·운영자 | Pattern 4, EKS MCP, 멀티 클러스터 매핑 |
-| [05. 코드 스타일](./docs/05-code-style.md) | 모든 컨트리뷰터 | 가독성 원칙과 검토 기준 |
-| [06. 보안 & 부하](./docs/06-security-and-load.md) | 보안·SRE 검토자 | layered defense 와 운영 체크리스트 |
-| [07. 운영 Runbook](./docs/07-runbook.md) | on-call 엔지니어 | 알람별 5 단계 대응 절차 |
+| Doc | Audience | Contents |
+|-----|----------|----------|
+| [00. References](./docs/00-references.md) | Everyone | Index of Strands · Bedrock · AgentCore · MCP · K8s materials |
+| [01. Getting Started](./docs/01-getting-started.md) | Newcomers | Install, pre-flight, 4-tier local testing |
+| [02. Architecture](./docs/02-architecture.md) | Readers | MCP-first design, data flow, invocation lifecycle |
+| [03. Development Guide](./docs/03-development.md) | Contributors | Tutorials for adding specialists / tools / MCP servers |
+| [04. AgentCore Deployment](./docs/04-deployment-agentcore.md) | Operators | Pattern 4, EKS MCP, multi-cluster mapping |
+| [05. Code Style](./docs/05-code-style.md) | All contributors | Readability principles and review criteria |
+| [06. Security & Load](./docs/06-security-and-load.md) | Security / SRE reviewers | Layered defense and operations checklist |
+| [07. Operations Runbook](./docs/07-runbook.md) | On-call engineers | 5-step response procedures per alarm scenario |
 
-추천 학습 순서: **01 → 02 → 03 → 04 → 06 → 05**.
-외부 자료(Strands · Bedrock AgentCore · EKS MCP 등)는 [00. References](./docs/00-references.md) 에 한곳에 모아두었습니다.
+Recommended reading order: **01 → 02 → 03 → 04 → 06 → 05 → 07**.
+External references (Strands, Bedrock AgentCore, EKS MCP, etc.) live in [00. References](./docs/00-references.md).
 
----
-
-## 이 레포로 무엇을 배울 수 있나
-
-이 레포는 **AWS 위에서 LLM 에이전트를 운영하기 위한 레퍼런스 프로젝트**입니다. RCA 자동화는 그 위에서 만들어 본 의미 있는 사용 시나리오일 뿐, 핵심 학습 가치는 그 옆에 있습니다.
-
-| 관심사 | 어디서부터 | 코드에서 보고 갈 곳 |
-|-------|-----------|------------------|
-| Strands 로 에이전트 짜기 | [02. 아키텍처 §3](./docs/02-architecture.md) | `agents/orchestrator.py`, `agents/pod_diagnostic.py` |
-| Bedrock AgentCore 운영 | [04. AgentCore 배포](./docs/04-deployment-agentcore.md) | `agentcore_app.py`, `deploy/agentcore/cdk_stack.py` |
-| MCP 통합 패턴 | [02 §3.1](./docs/02-architecture.md) | `infrastructure/mcp_client.py` |
-| K8s 진단 자동화 | [01 §6](./docs/01-getting-started.md) | `agents/pod_diagnostic.py` 의 system prompt |
-| LLM 보안 모델 | [06. 보안 & 부하](./docs/06-security-and-load.md) | `deploy/agentcore/iam-execution-policy.json`, `eks-rbac.yaml` |
-| 가독 가능한 AI-보조 코드 | [05. 코드 스타일](./docs/05-code-style.md) | 전체 — 코드는 의도적으로 짧고 평탄합니다 |
+> Korean translations live next to each English document as `*.ko.md` (e.g. `README.ko.md`, `CONTRIBUTING.ko.md`). Doc-level Korean translations under `docs/` are being added in subsequent PRs — until then, the English versions under `docs/` are the source of truth.
 
 ---
 
-## 핵심 설계 원칙
+## What you can learn from this repository
 
-1. **사람이 이해하지 못한 코드는 운영에 올리지 않습니다** — AI 도움을 받았어도 line-by-line 검토는 필수입니다.
-2. **MCP 와 SDK 를 우선 사용합니다** — Strands 와 EKS MCP 가 처리할 수 있는 것은 직접 구현하지 않습니다.
-3. **5초 안에 의도가 보이는 코드를 씁니다** — 6 개월 후 자신이 다시 봐도 즉시 읽힐 수 있어야 합니다.
-4. **도메인은 외부 라이브러리에 의존하지 않습니다** — 비즈니스 모델을 SDK 변경에 묶지 않습니다.
-5. **최소 권한 원칙을 지킵니다** — read-only RBAC 와 IAM Resource ARN 명시.
-6. **네트워크는 격리합니다** — AgentCore Pattern 4, VPC endpoints 만 통신.
-7. **방어선을 여러 겹 둡니다** — 한 layer 의 결함이 시스템 전체를 깨지 않도록 합니다.
-8. **확장이 단순해야 합니다** — 새 specialist 또는 MCP 추가가 한 파일로 끝나야 합니다.
+This repo is a **reference project for running LLM agents on AWS**. The Kubernetes RCA use case is a meaningful demonstration of the underlying capabilities; the deeper learning value is in the patterns themselves.
 
----
-
-## 일반 LLM 챗봇과의 차이
-
-| 항목 | 일반 LLM 챗봇 | 이 프로젝트 |
-|------|---------------|-------------|
-| K8s 데이터 접근 | 불가 | EKS MCP 로 실시간 조회 |
-| 권한 관리 | 통제 어려움 | EKS RBAC + IAM 분리 |
-| 보안 격리 | 노출 위험 | AgentCore Pattern 4 |
-| 비용 관리 | 어려움 | invocation 단위 + Bedrock Guardrail |
-| 확장성 | 단일 prompt 한계 | Specialist agent 와 MCP 조합 |
+| Interest | Start here | Where to look in code |
+|----------|-----------|----------------------|
+| Building agents with Strands | [02. Architecture §3](./docs/02-architecture.md) | `agents/orchestrator.py`, `agents/pod_diagnostic.py` |
+| Operating Bedrock AgentCore | [04. AgentCore Deployment](./docs/04-deployment-agentcore.md) | `agentcore_app.py`, `deploy/agentcore/cdk_stack.py` |
+| MCP integration patterns | [02 §3.1](./docs/02-architecture.md) | `infrastructure/mcp_client.py` |
+| K8s diagnostic automation | [01 §6](./docs/01-getting-started.md) | The system prompt in `agents/pod_diagnostic.py` |
+| LLM security model | [06. Security & Load](./docs/06-security-and-load.md) | `deploy/agentcore/iam-execution-policy.json`, `eks-rbac.yaml` |
+| Readable AI-assisted code | [05. Code Style](./docs/05-code-style.md) | The whole repo — code is intentionally short and flat |
 
 ---
 
-## 기여하기
+## Core design principles
 
-오픈소스 프로젝트로 운영합니다. 기여를 환영합니다.
+1. **We do not ship code we do not understand.** AI assistance is fine; line-by-line review is required.
+2. **MCP and SDKs first.** Anything Strands or EKS MCP can do, we do not reimplement.
+3. **Code that reveals intent in five seconds.** Six months from now, you must still be able to read it instantly.
+4. **The domain layer has no external dependencies.** We do not couple business models to SDK changes.
+5. **Least privilege everywhere.** Read-only RBAC, IAM resource ARNs explicitly listed.
+6. **The network is isolated.** AgentCore Pattern 4, communicating only via VPC endpoints.
+7. **Defense in depth.** A failure in one layer must not break the whole system.
+8. **Extension must be simple.** Adding a new specialist or MCP server should be a one-file change.
 
-- 시작 전에 [CONTRIBUTING.md](./CONTRIBUTING.md) 를 읽어주세요.
-- 모든 참여자는 [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) 를 준수합니다.
-- 처음이라면 `good first issue` 라벨이 붙은 이슈부터 살펴보세요.
+---
 
-## 라이선스
+## How this differs from a generic LLM chatbot
 
-[Apache License 2.0](./LICENSE) 으로 배포합니다. 의존하는 서드파티 라이선스는 [NOTICE](./NOTICE) 에 정리되어 있습니다.
+| Capability | Generic chatbot | This project |
+|------------|----------------|--------------|
+| K8s data access | None | Real-time via EKS MCP |
+| Permission control | Hard | EKS RBAC + IAM separation |
+| Security isolation | At risk of exposure | AgentCore Pattern 4 |
+| Cost control | Hard | Per-invocation + Bedrock Guardrails |
+| Extensibility | Single prompt | Specialist agents + MCP composition |
+
+---
+
+## Contributing
+
+This is an open-source project and contributions are welcome.
+
+- Please read [CONTRIBUTING.md](./CONTRIBUTING.md) before starting (Korean: [CONTRIBUTING.ko.md](./CONTRIBUTING.ko.md)).
+- All participants follow the [Code of Conduct](./CODE_OF_CONDUCT.md).
+- If this is your first contribution, look for issues labeled `good first issue`.
+
+## License
+
+Released under the [Apache License 2.0](./LICENSE). Third-party license attributions are in [NOTICE](./NOTICE).
